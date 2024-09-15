@@ -1,5 +1,14 @@
 import os
+import shutil
 from collections import defaultdict
+
+def format_size(size):
+    """Convert bytes into the largest appropriate unit."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB', 'PB']:
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} PB"
 
 def get_disk_usage(path):
     """Recursively calculate disk usage for each directory and file."""
@@ -31,7 +40,7 @@ def print_tree_view(path, depth=0, total_space=0):
     """Print the directory tree view with percentage usage."""
     size, _ = get_disk_usage(path)
     percentage = (size / total_space) * 100 if total_space else 0
-    print(f"{'  ' * depth}{os.path.basename(path)}/ - {size} bytes ({percentage:.2f}%)")
+    print(f"{'  ' * depth}{os.path.basename(path)}/ - {format_size(size)} ({percentage:.2f}%)")
 
     try:
         for entry in os.scandir(path):
@@ -45,11 +54,22 @@ def print_sorted_extensions(ext_usage):
     sorted_ext = sorted(ext_usage.items(), key=lambda x: x[1], reverse=True)
     print("\nFile Extension Usage:")
     for ext, size in sorted_ext:
-        print(f"{ext}: {size} bytes")
-        
+        print(f"{ext}: {format_size(size)}")
+
+def print_disk_info(path):
+    """Print the total, used, and free space of the disk where the path resides."""
+    total, used, free = shutil.disk_usage(path)
+    print(f"\nDisk Overview:")
+    print(f"Total space: {format_size(total)}")
+    print(f"Used space:  {format_size(used)}")
+    print(f"Free space:  {format_size(free)}\n")
 
 def main():
     path = input("Enter the directory path to analyze: ")
+
+    # Print disk space info for the path
+    print_disk_info(path)
+
     total_size, ext_usage = get_disk_usage(path)
 
     print("\nDisk Usage Tree View:")
