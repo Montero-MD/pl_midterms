@@ -21,16 +21,17 @@ def format_size(size):
 def get_disk_usage(path, progress_callback=None):
     total_size = 0
     ext_usage = defaultdict(int)
-    num_files = sum([len(files) for r, d, files in os.walk(path)])
+    num_files = sum([len(files) for r, d, files in os.walk(path)])  # Count total files
     file_count = 0
 
     try:
+        # Recursively walk through the directory
         for root, dirs, files in os.walk(path):
             for name in files:
                 file_count += 1
                 try:
                     filepath = os.path.join(root, name)
-                    size = os.path.getsize(filepath)
+                    size = os.path.getsize(filepath)  # Get file size
                     total_size += size
 
                     # Get file extension and accumulate its size
@@ -42,12 +43,14 @@ def get_disk_usage(path, progress_callback=None):
                         progress_callback(file_count / num_files * 100)
                 
                 except (FileNotFoundError, PermissionError, OSError) as e:
-                    print(f"Error: {e}")
-
+                    # Log the error but continue the analysis
+                    print(f"Warning: Skipping file {filepath} due to error: {e}")
+    
     except OSError as os_error:
         print(f"OSError while accessing directory: {os_error}")
     
     return total_size, ext_usage
+
 
 # GUI class for disk usage analyzer
 class DiskUsageApp:
@@ -111,6 +114,8 @@ class DiskUsageApp:
                     self.insert_tree_view(entry.path, node, total_size)
         except PermissionError as perm_error:
             print(f"PermissionError: {perm_error}")
+        except OSError as os_error:
+            print(f"OSError: {os_error}")
 
     def delete_selected_files(self):
         selected_items = self.tree.selection()
