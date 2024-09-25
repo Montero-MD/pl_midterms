@@ -139,8 +139,8 @@ def main():
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
         print("=== Disk Usage Statistics ===")
-        print("\n\nNote: If you wish to enter a root directory, enter the drive letter with a colon and a slash.")
-        print("\n\tExample:'C:\\'")
+        print("Note: If you wish to enter a root directory, enter the drive letter with a colon and a slash.")
+        print("\nExample: 'C:\\'")
         
         path = os.path.abspath(input("\n\nEnter the directory path to analyze: ").strip())
         
