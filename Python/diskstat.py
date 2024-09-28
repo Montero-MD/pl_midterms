@@ -1,3 +1,14 @@
+# Disk Usage Statistics Ver. 1 (Python)
+# Developed by Matthew David G. Montero -- BSCS 4A
+# For the subject "CCS238 - Programming Languages"
+
+# To use the program, just enter the directory of your choice. 
+# It will then analyze the disk usage of the entered directory
+# and will print the following to a text file:
+    # 1. basic information of the drive
+    # 2. directory's disk usage (along with its percentage) in a directory-tree-like view.
+    # 3. the disk usage of file extensions found within the directory.
+
 import os
 import shutil
 import sys
@@ -146,58 +157,70 @@ def main():
         
         start_time = time.time()
         
-        logs = 'Disk Usage Logs'
-        os.makedirs(logs, exist_ok=True)
+        # Check if the input is a valid directory
+        if os.path.isdir(path):
+            logs = 'Disk Usage Logs'
+            os.makedirs(logs, exist_ok=True)
 
-        if os.path.splitdrive(path)[1] == os.sep:
-            drive_label = os.path.splitdrive(path)[0].replace(':', '') 
-            filename = os.path.join(logs, f"{drive_label} -- Disk Usage Log.txt")
-        else:
-            filename = os.path.join(logs, f"{os.path.basename(path)} -- Disk Usage Log.txt")
+            if os.path.splitdrive(path)[1] == os.sep:
+                drive_label = os.path.splitdrive(path)[0].replace(':', '') 
+                filename = os.path.join(logs, f"{drive_label} -- Disk Usage Log.txt")
+            else:
+                filename = os.path.join(logs, f"{os.path.basename(path)} -- Disk Usage Log.txt")
 
-        error_logs = {
-            'FileNotFoundError': [],
-            'PermissionError': [],
-            'OSError': []
-        }
+            error_logs = {
+                'FileNotFoundError': [],
+                'PermissionError': [],
+                'OSError': []
+            }
 
-        loading = True
-        
-        # a thread lock is used to avoid two functions updating to the console at the same time
-        lock = threading.Lock()
-        animation_thread = threading.Thread(target=loading_animation_with_timer, args=(start_time, lock))
-        animation_thread.start()
-        
-        with open(filename, 'w', encoding='utf-8') as log_file:
-            print_disk_info(path, log_file)
-
-            while True:
-                total_size, ext_usage = get_disk_usage(path, log_file, error_logs)
-                
-                if total_size > 0:
-                    break
+            loading = True
             
-            log_file.write("\nDisk Usage Tree View:\n")
-            print_tree_view(path, 0, total_size, log_file, error_logs)
-            print_sorted_extensions(ext_usage, log_file)
-            log_errors(log_file, error_logs)
+            # a thread lock is used to avoid two functions updating to the console at the same time
+            lock = threading.Lock()
+            animation_thread = threading.Thread(target=loading_animation_with_timer, args=(start_time, lock))
+            animation_thread.start()
+            
+            with open(filename, 'w', encoding='utf-8') as log_file:
+                print_disk_info(path, log_file)
 
-        loading = False
-        animation_thread.join()
-        end_time = time.time()
-        
-        elapsed_time = end_time - start_time
-        minutes, seconds = divmod(elapsed_time, 60)
-        time_display = f"{int(minutes)} min {int(seconds):02d} sec" if minutes > 0 else f"{int(seconds):02d} seconds"
-        
-        print(f"\n\nThe output has been saved as: '{filename}'.\nSave Directory: '{os.getcwd()}\\Disk Usage Logs'")
-        print(f"\n\nTime elapsed: '{time_display}'.")
-        
-        restart = input("\nDo you want to analyze another directory? (Y/n): ").strip().lower()
-        if restart != 'y':
-            break
+                while True:
+                    total_size, ext_usage = get_disk_usage(path, log_file, error_logs)
+                    
+                    if total_size > 0:
+                        break
+                
+                log_file.write("\nDisk Usage Tree View:\n")
+                print_tree_view(path, 0, total_size, log_file, error_logs)
+                print_sorted_extensions(ext_usage, log_file)
+                log_errors(log_file, error_logs)
 
-    print("Session Terminated... Goodbye.")
+            loading = False
+            animation_thread.join()
+            end_time = time.time()
+            
+            elapsed_time = end_time - start_time
+            minutes, seconds = divmod(elapsed_time, 60)
+            time_display = f"{int(minutes)} min {int(seconds):02d} sec" if minutes > 0 else f"{int(seconds):02d} seconds"
+            
+            print(f"\n\nAnalysis complete! The output has been saved as: '{filename}'.\nSave Directory: '{os.getcwd()}\\Disk Usage Logs'")
+            print(f"\n\nTime elapsed: '{time_display}'.")
+            
+        else:
+            print(f"\nError: '{path}' is not a valid directory. \nPlease enter a valid directory path.")
+
+            
+        while True:
+            restart = input("\nDo you want to analyze another directory? (Y/n): ").strip().lower()
+            if restart == 'y':
+                break  # Restart the loop from the beginning
+            elif restart == 'n':
+                print("\n\nSession Terminated... Goodbye.")
+                os.system("pause")
+                return  # Exit the program
+            else:
+                print("\n\nInvalid input. Please enter 'Y' to continue or 'n' to quit.")
+
 
 if __name__ == "__main__":
     main()
