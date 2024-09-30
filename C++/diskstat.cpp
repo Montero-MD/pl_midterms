@@ -241,7 +241,7 @@ int main()
             int seconds = static_cast<int>(elapsed.count()) % 60;
 
             cout << "\n\nAnalysis complete! The output has been saved as '" << log_file_path << "'.\nSave Directory: '" << log_directory.string() << "'" << endl;
-            cout << "Time Elapsed: " << minutes << " min " << setw(2) << setfill('0') << seconds << " sec\n";
+            cout << "Time Completed: " << minutes << " min " << setw(2) << setfill('0') << seconds << " sec\n";
         }
         else
         {

@@ -181,6 +181,7 @@ def main():
             time_display = f"{int(minutes)} min {int(seconds):02d} sec" if minutes > 0 else f"{int(seconds):02d} seconds"
 
             print(f"\n\nAnalysis complete! The output has been saved as: '{filename}'.\nSave Directory: '{os.getcwd()}\\Disk Usage Logs'")
+            print(f"Time Completed: '{time_display}")
 
         else:
             print("\nError: Invalid directory path. Please enter a valid directory.\n")
@@ -191,6 +192,7 @@ def main():
                 break
             elif restart == 'n':
                 print("\nSession Terminated... Goodbye.\n")
+                os.system('pause')
                 sys.exit()
             else:
                 print("\nInvalid input. Please enter 'y' to continue or 'n' to quit.")
