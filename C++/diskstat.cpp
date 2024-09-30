@@ -1,15 +1,26 @@
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <vector>
-#include <thread>
-#include <chrono>
-#include <mutex>
-#include <map>
-#include <filesystem>
-#include <iomanip>
-#include <windows.h> // For Windows-specific disk space functions
-#include <algorithm>
+// Disk Usage Statistics Ver. 2 (C++)
+// Developed by Matthew David G. Montero -- BSCS 4A
+// For the subject "CCS238 - Programming Languages"
+
+// To use the program, just enter the directory of your choice. 
+// It will then analyze the disk usage of the entered directory
+// and will print the following to a text file:
+//     1. basic information of the drive
+//     2. directory's disk usage (along with its percentage) in a directory-tree-like view.
+//     3. the disk usage of file extensions found within the directory.
+
+#include <iostream>     // for input and output operations
+#include <fstream>      // for reading from and/or writing to files
+#include <filesystem>   // for navigating directories, path checking, retrieving file metadata
+#include <map>          // for storing key-value pairs; file extensions and their file sizes
+#include <vector>       // for having dynamic arrays; error summary
+#include <thread>       // for working with multiple threads; loading animation and timer
+#include <chrono>       // for timer
+#include <iomanip>      // for easy manipulation of printed texts; percentage output and timer
+#include <string>       // for easy string manipulation; directory paths
+#include <mutex>        // for ensuring outputs from multiple threads don't overlap; loading animation and timer
+#include <windows.h>    // Windows-specific disk space functions
+#include <algorithm>    // for sorting file extension usage
 
 namespace fs = std::filesystem;
 using namespace std;
@@ -181,7 +192,17 @@ int main()
             string log_dir = "Disk Usage Logs";
             fs::create_directory(log_dir);
 
-            string log_file_path = log_dir + "\\" + fs::path(path).filename().string() + " -- Disk Usage Log.txt";
+            // Check if the provided path is a root directory
+            string log_file_path;
+            if (path.length() == 3 && path[1] == ':' && path[2] == '\\') // Example: "C:\"
+            {
+                log_file_path = log_dir + "\\" + path[0] + " -- Disk Usage Log.txt"; // Use drive letter as filename
+            }
+            else
+            {
+                log_file_path = log_dir + "\\" + fs::path(path).filename().string() + " -- Disk Usage Log.txt";
+            }
+            
             ofstream log_file(log_file_path);
 
             if (!log_file.is_open())
@@ -220,8 +241,7 @@ int main()
             int seconds = static_cast<int>(elapsed.count()) % 60;
 
             cout << "\n\nAnalysis complete! The output has been saved as '" << log_file_path << "'.\nSave Directory: '" << log_directory.string() << "'" << endl;
-                cout
-                 << "Time Elapsed: " << minutes << " min " << setw(2) << setfill('0') << seconds << " sec\n";
+            cout << "Time Elapsed: " << minutes << " min " << setw(2) << setfill('0') << seconds << " sec\n";
         }
         else
         {
