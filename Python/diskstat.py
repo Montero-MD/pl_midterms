@@ -131,71 +131,88 @@ def main():
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
         print("=== Disk Usage Statistics ===")
-        print("Note: If you wish to enter a root directory, enter the drive letter with a colon and a slash.")
-        print("\nExample: 'C:\\'")
+        print("[1] Analyze Directory")
+        print("[2] Exit the program\n")
+        choice = input("Enter your choice: ").strip()
+        
+        if choice == '1':
+            while True:
+                clear_screen()
+                print("=== Directory Analysis ===")
+                print("Note: If you wish to enter a root directory, enter the drive letter with a colon and a backslash.")
+                print("Example: 'C:\\'")
 
-        path = os.path.abspath(input("\n\nEnter the directory path to analyze: ").strip())
+                path = os.path.abspath(input("\nEnter the directory path to analyze: ").strip())
 
-        start_time = time.time()
+                start_time = time.time()
 
-        # Check if the input is a valid directory
-        if os.path.isdir(path):
-            logs = 'Disk Usage Logs'
-            os.makedirs(logs, exist_ok=True)
+                # Check if the input is a valid directory
+                if os.path.isdir(path):
+                    logs = 'Disk Usage Logs (Python)'
+                    os.makedirs(logs, exist_ok=True)
 
-            if os.path.splitdrive(path)[1] == os.sep:
-                drive_label = os.path.splitdrive(path)[0].replace(':', '')
-                filename = os.path.join(logs, f"{drive_label} -- Disk Usage Log.txt")
-            else:
-                filename = os.path.join(logs, f"{os.path.basename(path)} -- Disk Usage Log.txt")
+                    if os.path.splitdrive(path)[1] == os.sep:
+                        drive_label = os.path.splitdrive(path)[0].replace(':', '')
+                        filename = os.path.join(logs, f"{drive_label} -- Disk Usage Log.txt")
+                    else:
+                        filename = os.path.join(logs, f"{os.path.basename(path)} -- Disk Usage Log.txt")
 
-            error_logs = []  # Change error_logs to be a list of strings
+                    error_logs = []  # Change error_logs to be a list of strings
 
-            loading = True
+                    loading = True
 
-            # a thread lock is used to avoid two functions updating to the console at the same time
-            lock = threading.Lock()
-            animation_thread = threading.Thread(target=loading_animation_with_timer, args=(start_time, lock))
-            animation_thread.start()
+                    # a thread lock is used to avoid two functions updating to the console at the same time
+                    lock = threading.Lock()
+                    animation_thread = threading.Thread(target=loading_animation_with_timer, args=(start_time, lock))
+                    animation_thread.start()
 
-            with open(filename, 'w', encoding='utf-8') as log_file:
-                print_disk_info(path, log_file)
+                    with open(filename, 'w', encoding='utf-8') as log_file:
+                        print_disk_info(path, log_file)
+
+                        while True:
+                            total_size, ext_usage = get_disk_usage(path, log_file, error_logs)
+
+                            if total_size > 0:
+                                break
+
+                        log_file.write("\nDisk Usage Tree View:\n")
+                        print_tree_view(path, 0, total_size, log_file, error_logs)
+                        print_sorted_extensions(ext_usage, log_file)
+                        log_errors(log_file, error_logs)
+
+                    loading = False
+                    animation_thread.join()
+                    end_time = time.time()
+
+                    elapsed_time = end_time - start_time
+                    minutes, seconds = divmod(elapsed_time, 60)
+                    time_display = f"{int(minutes)} min {int(seconds):02d} sec" if minutes > 0 else f"{int(seconds):02d} seconds"
+
+                    print(f"\n\nAnalysis complete! The output has been saved as: '{filename}'.\nSave Directory: '{os.getcwd()}\\Disk Usage Logs'")
+                    print(f"Time Completed: '{time_display}")
+
+                else:
+                    print("\n\nError: Invalid directory path. Please enter a valid directory.\n")
 
                 while True:
-                    total_size, ext_usage = get_disk_usage(path, log_file, error_logs)
-
-                    if total_size > 0:
+                    restart = input("\nDo you want to analyze another directory? (Y/n): ").strip().lower()
+                    if restart == 'y':
                         break
-
-                log_file.write("\nDisk Usage Tree View:\n")
-                print_tree_view(path, 0, total_size, log_file, error_logs)
-                print_sorted_extensions(ext_usage, log_file)
-                log_errors(log_file, error_logs)
-
-            loading = False
-            animation_thread.join()
-            end_time = time.time()
-
-            elapsed_time = end_time - start_time
-            minutes, seconds = divmod(elapsed_time, 60)
-            time_display = f"{int(minutes)} min {int(seconds):02d} sec" if minutes > 0 else f"{int(seconds):02d} seconds"
-
-            print(f"\n\nAnalysis complete! The output has been saved as: '{filename}'.\nSave Directory: '{os.getcwd()}\\Disk Usage Logs'")
-            print(f"Time Completed: '{time_display}")
-
+                    elif restart == 'n':
+                        print("\nSession Terminated... Goodbye.")
+                        os.system('pause')
+                        sys.exit()
+                    else:
+                        print("\nInvalid input. Please enter 'y' to continue or 'n' to quit.")
+        
+        elif choice == '2':
+            print("\nSession Terminated... Goodbye.")
+            os.system('pause')
+            sys.exit()
+            
         else:
-            print("\nError: Invalid directory path. Please enter a valid directory.\n")
+            print("Invalid input. Please enter '1' to analyze directory or '2' to exit the program.")
 
-        while True:
-            restart = input("\nDo you want to analyze another directory? (Y/n): ").strip().lower()
-            if restart == 'y':
-                break
-            elif restart == 'n':
-                print("\nSession Terminated... Goodbye.\n")
-                os.system('pause')
-                sys.exit()
-            else:
-                print("\nInvalid input. Please enter 'y' to continue or 'n' to quit.")
 
 if __name__ == "__main__":
     main()
