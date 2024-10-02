@@ -69,11 +69,11 @@ class DiskUsageApp(tk.Tk):
         self.select_dir_btn.pack(side=tk.LEFT)
 
         # Delete directory button
-        self.delete_btn = ttk.Button(button_frame, text="Delete Selected Directory", command=self.delete_directory)
+        self.delete_btn = ttk.Button(button_frame, text="Delete Selected Directory", command=self.delete_directory, state=tk.DISABLED)
         self.delete_btn.pack(side=tk.LEFT)
 
         # Error log button
-        self.error_log_btn = ttk.Button(button_frame, text="View Error Logs", command=self.show_error_logs)
+        self.error_log_btn = ttk.Button(button_frame, text="View Error Logs", command=self.show_error_logs, state=tk.DISABLED)
         self.error_log_btn.pack(side=tk.LEFT)
 
         # Exit program button
@@ -95,7 +95,6 @@ class DiskUsageApp(tk.Tk):
         # Bind the sorting order dropdown value change to trigger sorting
         self.sort_order_dropdown.bind("<<ComboboxSelected>>", lambda event: self.sort_tree())
 
-
         # Tree view frame
         tree_frame = ttk.Frame(self)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -108,6 +107,9 @@ class DiskUsageApp(tk.Tk):
         self.tree.column("size", width=150)
         self.tree.column("percent", width=100)
         self.tree.pack(fill=tk.BOTH, expand=True)
+
+        # Bind tree selection event to enable/disable delete button
+        self.tree.bind("<<TreeviewSelect>>", self.update_buttons)
 
         # Timer display
         self.timer_label = ttk.Label(self, text="Time Elapsed: 00:00")
@@ -203,7 +205,6 @@ class DiskUsageApp(tk.Tk):
         # Start recursive insertion from the selected path
         recursive_insert('', path, total_size)
 
-
     def populate_extensions(self, ext_usage):
         sorted_ext_usage = sorted(ext_usage.items(), key=lambda x: x[1], reverse=True)
         for ext, size in sorted_ext_usage:
@@ -233,6 +234,12 @@ class DiskUsageApp(tk.Tk):
             for child in root:
                 recursive_sort(child)
 
+    def update_buttons(self, event=None):
+        selected_item = self.tree.selection()
+        if selected_item:
+            self.delete_btn.config(state=tk.NORMAL)  # Enable delete button if something is selected
+        else:
+            self.delete_btn.config(state=tk.DISABLED)  # Disable delete button if nothing is selected
 
     def delete_directory(self):
         selected_item = self.tree.selection()
@@ -266,7 +273,6 @@ class DiskUsageApp(tk.Tk):
                     messagebox.showinfo("Success", f"{full_path} deleted successfully.")
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to delete {full_path}: {str(e)}")
-
 
     def show_error_logs(self):
         error_window = Toplevel(self)
