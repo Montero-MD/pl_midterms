@@ -5,6 +5,7 @@ import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, Toplevel, Listbox
 from collections import defaultdict
+from queue import Queue
 
 # Function to convert sizes to human-readable format
 def format_size(size):
@@ -18,8 +19,8 @@ def format_size(size):
 
     return f'{converted_size:.2f} {units[unit_index]}'
 
-# Function to recursively calculate disk usage
-def get_disk_usage(path, log_file, error_logs):
+# Function to calculate disk usage for a directory
+def calculate_usage(path, error_logs, result_queue):
     total_size = 0
     ext_usage = defaultdict(int)
 
@@ -34,11 +35,11 @@ def get_disk_usage(path, log_file, error_logs):
                     ext_usage[ext] += size
                 except Exception as e:
                     error_logs.append(f"Error processing file '{filepath}': {str(e)}")
-
+        # Return the total size and extension usage
+        return total_size, ext_usage
     except PermissionError as e:
         error_logs.append(f"Permission denied: {str(e)}")
-
-    return total_size, ext_usage
+        return total_size, ext_usage  # Return even on error
 
 class DiskUsageApp(tk.Tk):
     def __init__(self):
@@ -109,8 +110,11 @@ class DiskUsageApp(tk.Tk):
         self.start_time = time.time()
         self.update_timer()
 
+        # Create a queue for results
+        self.result_queue = Queue()
         self.analysis_thread = threading.Thread(target=self.analyze_directory, args=(path,))
         self.analysis_thread.start()
+        self.after(100, self.check_analysis)
 
     def update_timer(self):
         if self.analysis_running:  # Only update timer if analysis is running
@@ -120,7 +124,8 @@ class DiskUsageApp(tk.Tk):
             self.after(1000, self.update_timer)
 
     def analyze_directory(self, path):
-        total_size, ext_usage = get_disk_usage(path, None, self.error_logs)
+        # Calculate usage of the selected directory and populate the tree
+        total_size, ext_usage = calculate_usage(path, self.error_logs, self.result_queue)
 
         self.tree.insert('', 'end', text=path, values=(format_size(total_size), "100%"))
         self.populate_tree(path, total_size)
@@ -129,19 +134,39 @@ class DiskUsageApp(tk.Tk):
         self.progress.stop()
         self.analysis_running = False  # Stop the timer when analysis completes
 
+    def check_analysis(self):
+        if self.analysis_thread.is_alive():
+            self.after(100, self.check_analysis)
+        else:
+            self.progress.stop()
+            self.analysis_running = False  # Stop the timer when analysis completes
+
     def populate_tree(self, path, total_size):
         def recursive_insert(parent, path, total_size):
             try:
-                dir_size, _ = get_disk_usage(path, None, self.error_logs)
+                dir_size, ext_usage = calculate_usage(path, self.error_logs, self.result_queue)
                 percentage = (dir_size / total_size * 100) if total_size else 0
                 node_id = self.tree.insert(parent, 'end', text=os.path.basename(path), values=(format_size(dir_size), f"{percentage:.2f}%"))
+                
+                # Iterate over directory entries
                 for entry in os.scandir(path):
                     if entry.is_dir(follow_symlinks=False):
+                        # Recursively insert directories
                         recursive_insert(node_id, entry.path, total_size)
+                    elif entry.is_file(follow_symlinks=False):
+                        # Insert files into the tree
+                        try:
+                            file_size = os.path.getsize(entry.path)
+                            file_percentage = (file_size / total_size * 100) if total_size else 0
+                            self.tree.insert(node_id, 'end', text=entry.name, values=(format_size(file_size), f"{file_percentage:.2f}%"))
+                        except Exception as e:
+                            self.error_logs.append(f"Error processing file '{entry.path}': {str(e)}")
             except PermissionError as e:
                 self.error_logs.append(f"Permission denied: {str(e)}")
 
+        # Start recursive insertion from the selected path
         recursive_insert('', path, total_size)
+
 
     def populate_extensions(self, ext_usage):
         sorted_ext_usage = sorted(ext_usage.items(), key=lambda x: x[1], reverse=True)
