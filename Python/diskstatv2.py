@@ -24,7 +24,7 @@ def get_disk_usage(path, log_file, error_logs):
     ext_usage = defaultdict(int)
 
     try:
-        for root, dirs, files in os.walk(path):
+        for root, dirs, files in os.walk(path, onerror=lambda e: error_logs.append(f"Error accessing directory '{path}': {str(e)}")):
             for name in files:
                 filepath = os.path.join(root, name)
                 try:
@@ -35,8 +35,8 @@ def get_disk_usage(path, log_file, error_logs):
                 except Exception as e:
                     error_logs.append(f"Error processing file '{filepath}': {str(e)}")
 
-    except Exception as e:
-        error_logs.append(f"Error accessing directory '{path}': {str(e)}")
+    except PermissionError as e:
+        error_logs.append(f"Permission denied: {str(e)}")
 
     return total_size, ext_usage
 
@@ -46,6 +46,7 @@ class DiskUsageApp(tk.Tk):
         self.title("Disk Usage Analyzer")
         self.geometry("900x600")
         self.error_logs = []
+        self.analysis_running = False  # Add flag to track if the analysis is running
         self.create_widgets()
 
     def create_widgets(self):
@@ -83,7 +84,7 @@ class DiskUsageApp(tk.Tk):
         self.timer_label.pack(pady=5)
 
         # Progress bar to show the analysis progress
-        self.progress = ttk.Progressbar(self, orient="horizontal", mode="determinate")
+        self.progress = ttk.Progressbar(self, orient="horizontal", mode="indeterminate")
         self.progress.pack(fill=tk.X, padx=10, pady=5)
 
         # Frame for the file extension usage
@@ -102,6 +103,7 @@ class DiskUsageApp(tk.Tk):
     def start_analysis(self, path):
         self.clear_tree()
         self.error_logs.clear()
+        self.analysis_running = True  # Set the flag when analysis starts
         self.progress.start()
 
         self.start_time = time.time()
@@ -111,10 +113,10 @@ class DiskUsageApp(tk.Tk):
         self.analysis_thread.start()
 
     def update_timer(self):
-        elapsed_time = int(time.time() - self.start_time)
-        minutes, seconds = divmod(elapsed_time, 60)
-        self.timer_label.config(text=f"Time Elapsed: {minutes:02}:{seconds:02}")
-        if self.progress.winfo_ismapped():
+        if self.analysis_running:  # Only update timer if analysis is running
+            elapsed_time = int(time.time() - self.start_time)
+            minutes, seconds = divmod(elapsed_time, 60)
+            self.timer_label.config(text=f"Time Elapsed: {minutes:02}:{seconds:02}")
             self.after(1000, self.update_timer)
 
     def analyze_directory(self, path):
@@ -125,15 +127,19 @@ class DiskUsageApp(tk.Tk):
         self.populate_extensions(ext_usage)
 
         self.progress.stop()
+        self.analysis_running = False  # Stop the timer when analysis completes
 
     def populate_tree(self, path, total_size):
         def recursive_insert(parent, path, total_size):
-            dir_size, _ = get_disk_usage(path, None, self.error_logs)
-            percentage = (dir_size / total_size * 100) if total_size else 0
-            node_id = self.tree.insert(parent, 'end', text=os.path.basename(path), values=(format_size(dir_size), f"{percentage:.2f}%"))
-            for entry in os.scandir(path):
-                if entry.is_dir(follow_symlinks=False):
-                    recursive_insert(node_id, entry.path, total_size)
+            try:
+                dir_size, _ = get_disk_usage(path, None, self.error_logs)
+                percentage = (dir_size / total_size * 100) if total_size else 0
+                node_id = self.tree.insert(parent, 'end', text=os.path.basename(path), values=(format_size(dir_size), f"{percentage:.2f}%"))
+                for entry in os.scandir(path):
+                    if entry.is_dir(follow_symlinks=False):
+                        recursive_insert(node_id, entry.path, total_size)
+            except PermissionError as e:
+                self.error_logs.append(f"Permission denied: {str(e)}")
 
         recursive_insert('', path, total_size)
 
