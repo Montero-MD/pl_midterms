@@ -74,7 +74,6 @@ uintmax_t get_disk_usage(const fs::path &path, map<string, uintmax_t> &ext_usage
     return total_size;
 }
 
-// Function to display disk usage tree
 void print_tree_view(const fs::path &path, int depth, uintmax_t total_size, ofstream &log_file, map<string, uintmax_t> &ext_usage, vector<string> &error_logs)
 {
     uintmax_t dir_size = get_disk_usage(path, ext_usage, error_logs);
@@ -88,7 +87,17 @@ void print_tree_view(const fs::path &path, int depth, uintmax_t total_size, ofst
         {
             if (entry.is_directory())
             {
+                // Recursively call print_tree_view for subdirectories
                 print_tree_view(entry.path(), depth + 1, total_size, log_file, ext_usage, error_logs);
+            }
+            else if (entry.is_regular_file())
+            {
+                // Print file details in the tree view
+                uintmax_t file_size = entry.file_size();
+                double file_percentage = total_size > 0 ? (file_size * 100.0) / total_size : 0;
+
+                log_file << string((depth + 1) * 2, ' ') << entry.path().filename().string() << " - " 
+                         << format_size(file_size) << " (" << fixed << setprecision(2) << file_percentage << "%)\n";
             }
         }
     }
@@ -97,6 +106,7 @@ void print_tree_view(const fs::path &path, int depth, uintmax_t total_size, ofst
         error_logs.push_back(e.what());
     }
 }
+
 
 // Function to display sorted file extension usage
 void print_sorted_extensions(const map<string, uintmax_t> &ext_usage, ofstream &log_file)

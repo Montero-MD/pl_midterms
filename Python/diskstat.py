@@ -54,20 +54,28 @@ def get_disk_usage(path, log_file, error_logs):
 
     return total_size, ext_usage
 
-# Function to display the disk usage tree
+# Function to display the disk usage tree, including files
 def print_tree_view(path, depth, total_size, log_file, error_logs):
     dir_size, _ = get_disk_usage(path, log_file, error_logs)
     percentage = (dir_size / total_size * 100) if total_size else 0
     log_file.write(f"{'  ' * depth}{os.path.basename(path)}/ - {format_size(dir_size)} ({percentage:.2f}%)\n")
 
     try:
-        # Recursively go into subdirectories
+        # Recursively go into subdirectories and list files
         for entry in os.scandir(path):
             if entry.is_dir(follow_symlinks=False):
                 print_tree_view(entry.path, depth + 1, total_size, log_file, error_logs)
+            elif entry.is_file(follow_symlinks=False):
+                try:
+                    file_size = os.path.getsize(entry.path)
+                    file_percentage = (file_size / total_size * 100) if total_size else 0
+                    log_file.write(f"{'  ' * (depth + 1)}{entry.name} - {format_size(file_size)} ({file_percentage:.2f}%)\n")
+                except Exception as e:
+                    error_logs.append(f"Error processing file '{entry.path}': {str(e)}")
 
     except Exception as e:
         error_logs.append(f"Error accessing directory '{path}': {str(e)}")
+
 
 # Function to display sorted file extension usage
 def print_sorted_extensions(ext_usage, log_file):
