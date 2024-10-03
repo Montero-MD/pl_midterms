@@ -21,6 +21,7 @@
 #include <mutex>      // for ensuring outputs from multiple threads don't overlap; loading animation and timer
 #include <windows.h>  // Windows-specific disk space functions
 #include <algorithm>  // for sorting file extension usage
+#include <future>     // for async parallelism
 
 namespace fs = std::filesystem;
 using namespace std;
@@ -46,40 +47,13 @@ string format_size(uintmax_t size)
     return out.str();
 }
 
-// Function to recursively calculate disk usage
+#include <future> // for async parallelism
+
+// Optimized disk usage calculation with multithreading and async
 uintmax_t get_disk_usage(const fs::path &path, map<string, uintmax_t> &ext_usage, vector<string> &error_logs)
 {
     uintmax_t total_size = 0;
-
-    try
-    {
-        for (const auto &entry : fs::recursive_directory_iterator(path))
-        {
-            if (entry.is_regular_file())
-            {
-                uintmax_t size = entry.file_size();
-                total_size += size;
-
-                // Extract file extension and accumulate its size
-                string ext = entry.path().extension().string();
-                ext_usage[ext] += size;
-            }
-        }
-    }
-    catch (const fs::filesystem_error &e)
-    {
-        error_logs.push_back(e.what());
-    }
-
-    return total_size;
-}
-
-void print_tree_view(const fs::path &path, int depth, uintmax_t total_size, ofstream &log_file, map<string, uintmax_t> &ext_usage, vector<string> &error_logs)
-{
-    uintmax_t dir_size = get_disk_usage(path, ext_usage, error_logs);
-    double percentage = total_size > 0 ? (dir_size * 100.0) / total_size : 0;
-
-    log_file << string(depth * 2, ' ') << path.filename().string() << "/ - " << format_size(dir_size) << " (" << fixed << setprecision(2) << percentage << "%)\n";
+    vector<future<uintmax_t>> futures; // To hold futures for multithreaded directory processing
 
     try
     {
@@ -87,26 +61,96 @@ void print_tree_view(const fs::path &path, int depth, uintmax_t total_size, ofst
         {
             if (entry.is_directory())
             {
-                // Recursively call print_tree_view for subdirectories
-                print_tree_view(entry.path(), depth + 1, total_size, log_file, ext_usage, error_logs);
+                // Process subdirectories asynchronously
+                futures.push_back(async(launch::async, get_disk_usage, entry.path(), ref(ext_usage), ref(error_logs)));
             }
             else if (entry.is_regular_file())
             {
-                // Print file details in the tree view
-                uintmax_t file_size = entry.file_size();
-                double file_percentage = total_size > 0 ? (file_size * 100.0) / total_size : 0;
+                uintmax_t size = entry.file_size();
+                total_size += size;
 
-                log_file << string((depth + 1) * 2, ' ') << entry.path().filename().string() << " - " 
-                         << format_size(file_size) << " (" << fixed << setprecision(2) << file_percentage << "%)\n";
+                // Extract file extension and accumulate size
+                string ext = entry.path().extension().string();
+                {
+                    // Critical section to update the map
+                    lock_guard<mutex> lock(print_mutex);
+                    ext_usage[ext] += size;
+                }
             }
+        }
+
+        // Accumulate sizes from all threads
+        for (auto &f : futures)
+        {
+            total_size += f.get();
         }
     }
     catch (const fs::filesystem_error &e)
     {
+        lock_guard<mutex> lock(print_mutex);
         error_logs.push_back(e.what());
     }
+
+    return total_size;
 }
 
+// Consolidated function for tree view and size calculation
+void print_tree_view(const fs::path &path, int depth, uintmax_t total_size, ofstream &log_file, map<string, uintmax_t> &ext_usage, vector<string> &error_logs, const string &prefix = "")
+{
+    // Perform disk usage calculation only once
+    uintmax_t dir_size = get_disk_usage(path, ext_usage, error_logs);
+    double percentage = total_size > 0 ? (dir_size * 100.0) / total_size : 0;
+
+    // Print current directory with tree-like structure
+    log_file << prefix << "+- " << path.filename().string() << "/ - " << format_size(dir_size) << " (" << fixed << setprecision(2) << percentage << "%)\n";
+
+    // Gather directory contents
+    vector<fs::path> entries;
+    try
+    {
+        for (const auto &entry : fs::directory_iterator(path))
+        {
+            entries.push_back(entry.path());
+        }
+    }
+    catch (const fs::filesystem_error &e)
+    {
+        lock_guard<mutex> lock(print_mutex);
+        error_logs.push_back(e.what());
+    }
+
+    // Process each entry (directories first) and track if it's the last one
+    for (size_t i = 0; i < entries.size(); ++i)
+    {
+        const auto &entry = entries[i];
+        bool is_last = (i == entries.size() - 1);
+
+        // New prefix for the next level of the tree
+        string new_prefix = prefix + (is_last ? "   " : "|  ");
+
+        if (fs::is_directory(entry))
+        {
+            print_tree_view(entry, depth + 1, total_size, log_file, ext_usage, error_logs, new_prefix);
+        }
+        else
+        {
+            try
+            {
+                // Get file size
+                uintmax_t file_size = fs::file_size(entry);
+                double file_percentage = total_size > 0 ? (file_size * 100.0) / total_size : 0;
+
+                // Print file with tree-like structure
+                log_file << new_prefix << "+- " << entry.filename().string() << " - " << format_size(file_size) << " (" << fixed << setprecision(2) << file_percentage << "%)\n";
+            }
+            catch (const fs::filesystem_error &e)
+            {
+                lock_guard<mutex> lock(print_mutex);
+                error_logs.push_back(e.what());
+            }
+        }
+    }
+}
 
 // Function to display sorted file extension usage
 void print_sorted_extensions(const map<string, uintmax_t> &ext_usage, ofstream &log_file)
@@ -263,6 +307,23 @@ int main()
 
                     cout << "\n\nAnalysis complete! The output has been saved as '" << log_file_path << "'.\nSave Directory: '" << log_directory.string() << "'" << endl;
                     cout << "Time Completed: " << minutes << " min " << setw(2) << setfill('0') << seconds << " sec\n";
+
+                    // Ensure log file is closed before opening
+                    log_file.close(); // Close the ofstream to release the file lock
+                    // Prompt to open the log file
+                    string open_file;
+                    cout << "\nWould you like to open the log file? (Y/n): ";
+                    cin >> open_file;
+
+                    // Convert input to lowercase and remove extra spaces
+                    transform(open_file.begin(), open_file.end(), open_file.begin(), ::tolower);
+
+                    if (open_file == "y" || open_file == "yes")
+                    {
+                        // Enclose the log file path in quotes to handle spaces in paths
+                        string command = "start \"\" \"" + log_file_path + "\"";
+                        system(command.c_str()); // Opens the file with the default program on Windows
+                    }
                 }
                 else
                 {
@@ -291,6 +352,7 @@ int main()
                     else
                     {
                         cout << "\n\nInvalid input. Please enter 'y' to continue or 'n' to quit.";
+                        system("pause");
                     }
                 }
             }
@@ -304,6 +366,7 @@ int main()
         else
         {
             cout << "\n\nInvalid input. Please enter 'y' to continue or 'n' to quit.";
+            system("pause");
         }
     }
     return 0;

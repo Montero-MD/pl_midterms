@@ -54,27 +54,51 @@ def get_disk_usage(path, log_file, error_logs):
 
     return total_size, ext_usage
 
-# Function to display the disk usage tree, including files
-def print_tree_view(path, depth, total_size, log_file, error_logs):
-    dir_size, _ = get_disk_usage(path, log_file, error_logs)
-    percentage = (dir_size / total_size * 100) if total_size else 0
-    log_file.write(f"{'  ' * depth}{os.path.basename(path)}/ - {format_size(dir_size)} ({percentage:.2f}%)\n")
-
+# Function to display the disk usage tree with structure similar to the 'tree' command
+def print_tree_view(path, depth, total_size, log_file, error_logs, prefix=""):
     try:
-        # Recursively go into subdirectories and list files
-        for entry in os.scandir(path):
-            if entry.is_dir(follow_symlinks=False):
-                print_tree_view(entry.path, depth + 1, total_size, log_file, error_logs)
-            elif entry.is_file(follow_symlinks=False):
-                try:
-                    file_size = os.path.getsize(entry.path)
-                    file_percentage = (file_size / total_size * 100) if total_size else 0
-                    log_file.write(f"{'  ' * (depth + 1)}{entry.name} - {format_size(file_size)} ({file_percentage:.2f}%)\n")
-                except Exception as e:
-                    error_logs.append(f"Error processing file '{entry.path}': {str(e)}")
+        # Manually retrieve the directory name from the path
+        path_parts = path.rstrip(os.sep).split(os.sep)  # Split the path into its components
+        dir_name = path_parts[-1]  # Get the last part, which is the directory name
+
+        # Calculate the directory size and percentage
+        dir_size, _ = get_disk_usage(path, log_file, error_logs)
+        percentage = (dir_size / total_size * 100) if total_size else 0
+
+        # Print the current directory with a tree-like prefix
+        log_file.write(f"{prefix}+- {dir_name}/ - {format_size(dir_size)} ({percentage:.2f}%)\n")
+
+        # Get the directory contents and handle errors
+        try:
+            entries = os.listdir(path)
+            entries = [entry for entry in entries if not entry.startswith('.')]  # Exclude hidden files
+            entries_count = len(entries)
+
+            for i, entry in enumerate(entries):
+                entry_path = os.path.join(path, entry)
+                is_last_entry = (i == entries_count - 1)
+
+                # Set the new prefix for subdirectories
+                new_prefix = prefix + ("   " if is_last_entry else "|  ")
+
+                if os.path.isdir(entry_path):
+                    # Recursive call to print subdirectory
+                    print_tree_view(entry_path, depth + 1, total_size, log_file, error_logs, new_prefix)
+
+                else:
+                    # For files, just display the size and name
+                    try:
+                        file_size = os.path.getsize(entry_path)
+                        file_percentage = (file_size / total_size * 100) if total_size else 0
+                        log_file.write(f"{new_prefix}+- {entry} - {format_size(file_size)} ({file_percentage:.2f}%)\n")
+                    except Exception as e:
+                        error_logs.append(f"Error processing file '{entry_path}': {str(e)}")
+
+        except Exception as e:
+            error_logs.append(f"Error accessing directory '{path}': {str(e)}")
 
     except Exception as e:
-        error_logs.append(f"Error accessing directory '{path}': {str(e)}")
+        error_logs.append(f"Error processing path '{path}': {str(e)}")
 
 
 # Function to display sorted file extension usage
@@ -154,7 +178,7 @@ def main():
 
                 start_time = time.time()
 
-                # Check if the input is a valid directory
+               # Main program (continue from where the analysis is completed)
                 if os.path.isdir(path):
                     logs = 'Disk Usage Logs (Python)'
                     os.makedirs(logs, exist_ok=True)
@@ -197,7 +221,25 @@ def main():
                     time_display = f"{int(minutes)} min {int(seconds):02d} sec" if minutes > 0 else f"{int(seconds):02d} seconds"
 
                     print(f"\n\nAnalysis complete! The output has been saved as: '{filename}'.\nSave Directory: '{os.getcwd()}\\Disk Usage Logs'")
-                    print(f"Time Completed: '{time_display}")
+                    print(f"Time Completed: {time_display}")
+
+                    # Ask if the user wants to open the log file
+                    while True:
+                        open_log = input("\nWould you like to open the log file? (Y/n): ").strip().lower()
+                        if open_log == 'y':
+                            # Open file based on the operating system
+                            if os.name == 'nt':  # Windows
+                                os.startfile(filename)
+                            else:  # macOS or Linux
+                                subprocess.Popen(['open', filename] if sys.platform == 'darwin' else ['xdg-open', filename])
+                            break
+                        elif open_log == 'n':
+                            print("\nSession Terminated... Goodbye.")
+                            os.system('pause')
+                            sys.exit()
+                        else:
+                            print("\nInvalid input. Please enter 'y' to open the log file or 'n' to skip.")
+                            os.system('pause')
 
                 else:
                     print("\n\nError: Invalid directory path. Please enter a valid directory.\n")
@@ -212,6 +254,7 @@ def main():
                         sys.exit()
                     else:
                         print("\nInvalid input. Please enter 'y' to continue or 'n' to quit.")
+                        os.system('pause')
         
         elif choice == '2':
             print("\nSession Terminated... Goodbye.")
@@ -220,6 +263,7 @@ def main():
             
         else:
             print("Invalid input. Please enter '1' to analyze directory or '2' to exit the program.")
+            os.system('pause')
 
 
 if __name__ == "__main__":
